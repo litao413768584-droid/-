@@ -1,0 +1,6 @@
+{
+  "name": "东城油17舱容计算与Excel解析系统",
+  "description": "东城油17 (DONG CHENG YOU 17) 船舶舱容量自动计算、纵倾横倾修正、Excel表格上传自动解析与检定证书数据系统",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

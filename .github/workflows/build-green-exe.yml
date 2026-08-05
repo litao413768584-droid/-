@@ -1,0 +1,78 @@
+name: Tauri 单文件绿色版 GitHub 自动打包
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-windows-green-exe:
+    name: 构建 Windows 单文件免安装绿色版
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 1. 检出源代码 (Checkout)
+        uses: actions/checkout@v4
+
+      - name: 2. 安装 Node.js 环境
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 3. 安装 Rust 编译环境
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: 4. 配置 Rust 依赖缓存
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: 5. 安装前端 npm 依赖
+        run: npm install
+
+      - name: 6. 编译 Web 前端静态资源
+        run: npm run build
+
+      - name: 7. 执行 Tauri 单文件与安装包编译
+        uses: tauri-apps/tauri-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: '液货船舱容计算系统 v__VERSION__'
+          releaseBody: '🚢 免安装绿色版单文件 `.exe` 及安装包已自动构建完成，请按需下载使用。'
+          releaseDraft: false
+          prerelease: false
+          args: --target x86_64-pc-windows-msvc
+
+      - name: 8. 提取与重命名单文件免安装绿色版 (.exe)
+        if: always()
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist-green-exe"
+          
+          # 查找生成的 release 可执行文件
+          $exePath = Get-ChildItem -Path "src-tauri/target" -Recurse -Filter "cargo-calculator.exe" | Where-Object { $_.FullName -like "*release*" -and $_.FullName -notlike "*build*" -and $_.FullName -notlike "*deps*" } | Select-Object -First 1
+
+          if ($exePath) {
+            Write-Host "找到单文件绿色程序: $($exePath.FullName)"
+            Copy-Item -Path $exePath.FullName -Destination "dist-green-exe/液货船舱容计算系统-单文件绿色免安装版.exe"
+            Write-Host "成功提取绿色免安装版至: dist-green-exe/液货船舱容计算系统-单文件绿色免安装版.exe"
+          } else {
+            Write-Warning "未找到目标 cargo-calculator.exe"
+          }
+
+      - name: 9. 上传单文件绿色版到 GitHub Actions Artifacts (构建成果)
+        uses: actions/upload-artifact@v4
+        with:
+          name: 液货船舱容计算系统-单文件绿色免安装版
+          path: dist-green-exe/*.exe
+          retention-days: 30
