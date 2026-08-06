@@ -1,18 +1,34 @@
-[package]
-name = "cargo-calculator"
-version = "1.0.0"
-description = "液货船液位舱容计算与数字孪生系统"
-authors = ["Vessel Dev Team"]
+﻿[package]
+name = "myapp"
+version = "0.1.0"
+description = "My Tauri App"
+authors = ["Your Name <email@example.com>"]
+license = "MIT"
 edition = "2021"
 
+[lib]
+name = "myapp_lib"
+crate-type = ["cdylib", "staticlib"]
+
 [build-dependencies]
-tauri-build = { version = "2.0", features = [] }
+tauri-build = { version = "1.5", features = [] }
 
 [dependencies]
-tauri = { version = "2.0", features = [] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+tauri = { version = "1.5", features = ["api-all"] }
 
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+# 关键：针对 Windows 单文件 exe 的优化
+[target.'cfg(windows)'.dependencies]
+tauri = { version = "1.5", features = ["api-all"] }
+
+[profile.release]
+strip = true           # 移除调试符号
+opt-level = "z"        # 极致体积优化
+lto = true             # 链接时优化
+codegen-units = 1      # 单代码生成单元
+panic = "abort"        # abort panic 策略

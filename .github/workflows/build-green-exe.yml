@@ -8,25 +8,23 @@ on:
   release:
     types: [published, created]
 
-# 关键：给足权限，让 action 可以创建 Release
 permissions:
   contents: write
 
 jobs:
   build-windows:
-    runs-on: windows-latest # 只跑 Windows
+    runs-on: windows-latest
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
     
-    # 重点：使用 setup-bun 代替 setup-node，因为你的项目用 bun
     - name: Setup Bun
       uses: oven-sh/setup-bun@v1
       with:
         bun-version: latest
     
-    - name: Install dependencies (bun)
+    - name: Install dependencies
       run: bun install
     
     - name: Setup Rust
@@ -39,23 +37,22 @@ jobs:
       with:
         workspaces: './src-tauri -> target'
     
-    # Windows 下不需要安装 Linux 依赖，直接构建
-    - name: Build Tauri App (Windows)
-      run: bun run tauri build
+    # 关键：生成单文件 EXE（不打包成安装程序）
+    - name: Build standalone EXE
+      run: |
+        bun run tauri build --target x86_64-pc-windows-msvc -- --no-bundle
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
-    # 上传 EXE 和 MSI 安装包
-    - name: Upload EXE artifacts
+    # 上传单文件 EXE
+    - name: Upload EXE
       uses: actions/upload-artifact@v4
       with:
-        name: windows-build
+        name: myapp-standalone
         path: |
-          src-tauri/target/release/bundle/msi/*.msi
-          src-tauri/target/release/bundle/nsis/*.exe
+          src-tauri/target/x86_64-pc-windows-msvc/release/*.exe
         if-no-files-found: error
 
-  # 可选：自动发布到 Release
   release:
     needs: build-windows
     if: github.event_name == 'release'
@@ -71,8 +68,6 @@ jobs:
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
       with:
-        files: |
-          artifacts/**/*.exe
-          artifacts/**/*.msi
+        files: artifacts/**/*.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
