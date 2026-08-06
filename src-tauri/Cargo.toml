@@ -1,13 +1,13 @@
 ﻿[package]
-name = "myapp"
+name = "cangrong-calculator"
 version = "0.1.0"
-description = "My Tauri App"
+description = "舱容计算与PDF解析系统"
 authors = ["Your Name <email@example.com>"]
 license = "MIT"
 edition = "2021"
 
 [lib]
-name = "myapp_lib"
+name = "cangrong_calculator_lib"
 crate-type = ["cdylib", "staticlib"]
 
 [build-dependencies]
@@ -22,13 +22,9 @@ tauri = { version = "1.5", features = ["api-all"] }
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
-# 关键：针对 Windows 单文件 exe 的优化
-[target.'cfg(windows)'.dependencies]
-tauri = { version = "1.5", features = ["api-all"] }
-
 [profile.release]
-strip = true           # 移除调试符号
-opt-level = "z"        # 极致体积优化
-lto = true             # 链接时优化
-codegen-units = 1      # 单代码生成单元
-panic = "abort"        # abort panic 策略
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

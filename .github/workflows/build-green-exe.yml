@@ -37,20 +37,19 @@ jobs:
       with:
         workspaces: './src-tauri -> target'
     
-    # 关键：生成单文件 EXE（不打包成安装程序）
     - name: Build standalone EXE
       run: |
         bun run tauri build --target x86_64-pc-windows-msvc -- --no-bundle
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
-    # 上传单文件 EXE
     - name: Upload EXE
       uses: actions/upload-artifact@v4
       with:
-        name: myapp-standalone
+        name: cangrong-calculator
         path: |
           src-tauri/target/x86_64-pc-windows-msvc/release/*.exe
+          src-tauri/target/release/*.exe
         if-no-files-found: error
 
   release:
