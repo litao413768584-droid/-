@@ -1,45 +1,88 @@
-{
-  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "液货船舱容计算系统",
-  "version": "1.0.0",
-  "identifier": "com.vessel.cargocalculator",
+﻿{
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
-    "devUrl": "http://localhost:3000",
-    "frontendDist": "../dist"
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist",
+    "withGlobalTauri": false
   },
-  "app": {
+  "package": {
+    "productName": "your-app-name",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "all": false,
+        "open": true
+      },
+      "fs": {
+        "all": false,
+        "scope": ["$APPDATA/*", "$DESKTOP/*", "$DOCUMENT/*", "$DOWNLOAD/*"]
+      },
+      "window": {
+        "all": true
+      },
+      "dialog": {
+        "all": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "identifier": "com.yourcompany.yourapp",
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ],
+      "longDescription": "Your app description",
+      "shortDescription": "Your app short description",
+      "copyright": "Copyright 2024",
+      "category": "Utility",
+      "resources": [],
+      "externalBin": [],
+      "createUpdaterArtifacts": false,
+      "targets": ["nsis", "msi"]  // ← 在这里指定打包格式
+    },
+    "security": {
+      "csp": "default-src 'self'"
+    },
     "windows": [
       {
-        "title": "液货船液位舱容计算与数字孪生系统",
-        "width": 1440,
-        "height": 900,
+        "title": "Your App",
+        "width": 1200,
+        "height": 800,
         "resizable": true,
         "fullscreen": false,
-        "center": true
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true,
+        "decorations": true
       }
     ],
-    "security": {
-      "csp": null
-    }
-  },
-  "bundle": {
-    "active": true,
-    "targets": ["nsis"],
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ],
     "nsis": {
-      "displayLanguageSelector": false,
-      "languages": ["SimpChinese"],
+      // ← NSIS 配置放在这里，与 bundle 同级
       "installerIcon": "icons/icon.ico",
-      "headerImage": "icons/128x128.png",
-      "sidebarImage": "icons/128x128.png"
+      "installerHeader": "icons/icon.ico",
+      "createStartMenuShortcut": true,
+      "allowShortcut": true,
+      "displayLanguageSelector": false,
+      "perMachine": false,
+      "sameInstallDir": true,
+      "languages": ["English", "SimplifiedChinese"]
+    },
+    "windows": {
+      // ← Windows 特定配置
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
     }
   }
 }
