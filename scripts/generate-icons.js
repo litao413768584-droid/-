@@ -72,12 +72,16 @@ function crc32(buf) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-// Create ICO Buffer containing a PNG icon
-function createIcoBuffer(pngBuffer, width, height) {
-  const header = Buffer.alloc(6);
-  header.writeUInt16LE(0, 0); // Reserved
-  header.writeUInt16LE(1, 2); // Type 1 = ICO
-  header.writeUInt16LE(1, 4); // Number of images
+// Create standard Windows DIB ICO Buffer (compatible with Windows RC.EXE compiler)
+function createStandardIcoBuffer(width = 32, height = 32, r = 30, g = 58, b = 138, a = 255) {
+  const iconHeader = Buffer.alloc(6);
+  iconHeader.writeUInt16LE(0, 0); // Reserved
+  iconHeader.writeUInt16LE(1, 2); // Type 1 = ICO
+  iconHeader.writeUInt16LE(1, 4); // 1 image
+
+  const xorSize = width * height * 4;
+  const andSize = height * Math.ceil(width / 32) * 4; // 1 bit per pixel, padded to 32 bits
+  const resSize = 40 + xorSize + andSize;
 
   const directory = Buffer.alloc(16);
   directory[0] = width >= 256 ? 0 : width;
@@ -86,10 +90,44 @@ function createIcoBuffer(pngBuffer, width, height) {
   directory[3] = 0; // Reserved
   directory.writeUInt16LE(1, 4); // Color planes
   directory.writeUInt16LE(32, 6); // Bits per pixel
-  directory.writeUInt32LE(pngBuffer.length, 8); // Image size
-  directory.writeUInt32LE(22, 12); // Offset to image data (6 + 16)
+  directory.writeUInt32LE(resSize, 8); // Size of resource
+  directory.writeUInt32LE(22, 12); // Offset (6 + 16)
 
-  return Buffer.concat([header, directory, pngBuffer]);
+  // BITMAPINFOHEADER
+  const bih = Buffer.alloc(40);
+  bih.writeUInt32LE(40, 0); // biSize
+  bih.writeInt32LE(width, 4); // biWidth
+  bih.writeInt32LE(height * 2, 8); // biHeight (XOR + AND mask = 2 * height)
+  bih.writeUInt16LE(1, 12); // biPlanes
+  bih.writeUInt16LE(32, 14); // biBitCount
+  bih.writeUInt32LE(0, 16); // biCompression (BI_RGB)
+  bih.writeUInt32LE(xorSize + andSize, 20); // biSizeImage
+  bih.writeInt32LE(0, 24); // biXPelsPerMeter
+  bih.writeInt32LE(0, 28); // biYPelsPerMeter
+  bih.writeUInt32LE(0, 32); // biClrUsed
+  bih.writeUInt32LE(0, 36); // biClrImportant
+
+  // XOR Mask Data (BGRA, bottom-to-top)
+  const xorData = Buffer.alloc(xorSize);
+  for (let y = 0; y < height; y++) {
+    // DIB rows go from bottom to top
+    const rowInImg = height - 1 - y;
+    const rowOffset = y * width * 4;
+    for (let x = 0; x < width; x++) {
+      const pixelOffset = rowOffset + x * 4;
+      const isBorder = x < 2 || x >= width - 2 || rowInImg < 2 || rowInImg >= height - 2;
+      
+      xorData[pixelOffset + 0] = isBorder ? 246 : b; // Blue
+      xorData[pixelOffset + 1] = isBorder ? 130 : g; // Green
+      xorData[pixelOffset + 2] = isBorder ? 59 : r;  // Red
+      xorData[pixelOffset + 3] = a;                  // Alpha
+    }
+  }
+
+  // AND Mask Data (1 bit per pixel, 0 = opaque)
+  const andData = Buffer.alloc(andSize, 0);
+
+  return Buffer.concat([iconHeader, directory, bih, xorData, andData]);
 }
 
 // Write icons to src-tauri/icons
@@ -101,7 +139,7 @@ if (!fs.existsSync(iconsDir)) {
 const p32 = createPngBuffer(32, 32);
 const p128 = createPngBuffer(128, 128);
 const p256 = createPngBuffer(256, 256);
-const ico = createIcoBuffer(p32, 32, 32);
+const ico = createStandardIcoBuffer(32, 32);
 
 fs.writeFileSync(path.join(iconsDir, '32x32.png'), p32);
 fs.writeFileSync(path.join(iconsDir, '128x128.png'), p128);

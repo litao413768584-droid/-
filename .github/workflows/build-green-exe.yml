@@ -37,8 +37,10 @@ jobs:
       - name: 5. 安装前端依赖
         run: npm install
 
-      - name: 6. 编译 Web 前端静态资源
-        run: npm run build
+      - name: 6. 编译 Web 前端静态资源及桌面应用图标
+        run: |
+          node scripts/generate-icons.js
+          npm run build
 
       - name: 7. 使用 Tauri CLI 构建 Windows 单文件绿色程序 (.exe)
         run: npx tauri build --target x86_64-pc-windows-msvc --bundles none
