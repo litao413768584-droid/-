@@ -50,17 +50,20 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path "dist-green-exe"
           
-          $exePath = Get-ChildItem -Path "src-tauri/target/x86_64-pc-windows-msvc/release" -Filter "cargo-calculator.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $exePath) {
-            $exePath = Get-ChildItem -Path "src-tauri/target/release" -Filter "cargo-calculator.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          }
+          # 检索 target 目录下生成的最终 Release .exe (自动排除中间构建产物)
+          $exePath = Get-ChildItem -Path "src-tauri/target" -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue | Where-Object {
+            $_.FullName -notmatch "\\deps\\" -and
+            $_.FullName -notmatch "\\build\\" -and
+            $_.FullName -notmatch "\\incremental\\" -and
+            $_.Name -notmatch "build-script"
+          } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
           if ($exePath) {
             Write-Host "找到单文件绿色程序: $($exePath.FullName)"
             Copy-Item -Path $exePath.FullName -Destination "dist-green-exe/液货船舱容计算系统-单文件绿色免安装版.exe"
             Write-Host "成功导出至: dist-green-exe/液货船舱容计算系统-单文件绿色免安装版.exe"
           } else {
-            Write-Error "未找到目标 cargo-calculator.exe"
+            Write-Error "未找到目标构建的 .exe 程序文件"
             exit 1
           }
 
