@@ -33,11 +33,11 @@
 ### 1. 运行构建命令
 ```bash
 # 使用 Bun 或 NPM:
-bun run tauri build -- --no-bundle
+bun run tauri build -- --bundles none
 # 或
-npm run tauri:build -- --no-bundle
+npm run tauri:build -- --bundles none
 # 或
-npx tauri build --no-bundle
+npx tauri build --bundles none
 ```
 
 ### 2. 绿色单文件 `.exe` 产物位置
