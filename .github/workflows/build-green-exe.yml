@@ -1,72 +1,87 @@
-﻿name: Build Windows EXE
+name: Windows 单文件免安装绿色版 GitHub 自动打包
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-  release:
-    types: [published, created]
-
-permissions:
-  contents: write
+    tags:
+      - 'v*'
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-  build-windows:
+  build-windows-green-exe:
+    name: 构建 Windows 单文件免安装绿色版 (.exe)
     runs-on: windows-latest
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Setup Bun
-      uses: oven-sh/setup-bun@v1
-      with:
-        bun-version: latest
-    
-    - name: Install dependencies
-      run: bun install
-    
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: x86_64-pc-windows-msvc
-    
-    - name: Rust cache
-      uses: swatinem/rust-cache@v2
-      with:
-        workspaces: './src-tauri -> target'
-    
-    - name: Build standalone EXE
-      run: |
-        bun run tauri build --target x86_64-pc-windows-msvc -- --no-bundle
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Upload EXE
-      uses: actions/upload-artifact@v4
-      with:
-        name: cangrong-calculator
-        path: |
-          src-tauri/target/x86_64-pc-windows-msvc/release/*.exe
-          src-tauri/target/release/*.exe
-        if-no-files-found: error
-
-  release:
-    needs: build-windows
-    if: github.event_name == 'release'
-    runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-    
-    - name: Upload to Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: artifacts/**/*.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 1. 检出源代码 (Checkout)
+        uses: actions/checkout@v4
+
+      - name: 2. 安装 Node.js 环境
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 3. 安装 Rust 编译环境
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: 4. 配置 Rust 依赖缓存
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: 5. 安装前端依赖
+        run: npm install
+
+      - name: 6. 编译 Web 前端静态资源
+        run: npm run build
+
+      - name: 7. 使用 Tauri CLI 构建 Windows 单文件绿色程序 (.exe)
+        run: npx tauri build --target x86_64-pc-windows-msvc --no-bundle
+
+      - name: 8. 提取与重命名单文件免安装绿色程序 (.exe)
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist-green-exe"
+          
+          $exePath = Get-ChildItem -Path "src-tauri/target/x86_64-pc-windows-msvc/release" -Filter "cargo-calculator.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exePath) {
+            $exePath = Get-ChildItem -Path "src-tauri/target/release" -Filter "cargo-calculator.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+
+          if ($exePath) {
+            Write-Host "找到单文件绿色程序: $($exePath.FullName)"
+            Copy-Item -Path $exePath.FullName -Destination "dist-green-exe/液货船舱容计算系统-单文件绿色免安装版.exe"
+            Write-Host "成功导出至: dist-green-exe/液货船舱容计算系统-单文件绿色免安装版.exe"
+          } else {
+            Write-Error "未找到目标 cargo-calculator.exe"
+            exit 1
+          }
+
+      - name: 9. 上传单文件绿色版至 Actions Artifacts (可直接下载)
+        uses: actions/upload-artifact@v4
+        with:
+          name: 液货船舱容计算系统-单文件绿色免安装版
+          path: dist-green-exe/*.exe
+          retention-days: 30
+
+      - name: 10. 发布至 GitHub Releases (若打了 v* 标签或手动触发)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-green-exe/液货船舱容计算系统-单文件绿色免安装版.exe
+          name: 液货船舱容计算系统 ${{ github.ref_name }} 免安装绿色版
+          body: |
+            🚢 **液货船液位舱容计算与数字孪生系统 - Windows 免安装绿色版**
+            
+            - **文件特点**: 单文件纯绿色 `.exe`，双击直接运行，无需安装，不写注册表。
+            - **文件名称**: `液货船舱容计算系统-单文件绿色免安装版.exe`
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
