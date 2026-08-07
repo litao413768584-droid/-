@@ -136,9 +136,10 @@ export const CalculatorView: React.FC<CalculatorViewProps> = ({
       prev.map(t => {
         if (t.tankId !== tankId) return t;
         const meta = activeTanks.find(m => m.id === tankId);
-        const refH = meta ? meta.refHeight : 8.960;
+        const refHMm = meta ? Math.round(meta.refHeight * 1000) : 8960;
         const newType: MeasurementType = t.type === 'sounding' ? 'ullage' : 'sounding';
-        const newDVal = parseFloat(Math.max(0, refH - t.value).toFixed(3));
+        const rawVal = parseFloat((t.value ?? 0) as any) || 0;
+        const newDVal = Math.max(0, Math.round(refHMm - rawVal));
         return {
           ...t,
           type: newType,
@@ -165,12 +166,12 @@ export const CalculatorView: React.FC<CalculatorViewProps> = ({
         prev.map(t => ({
           ...t,
           type: 'sounding',
-          value: t.tankId === 'P1' ? 3.523 : 3.500,
+          value: t.tankId === 'P1' ? 3523 : 3500,
           density20C: 0.8500,
           temperature: 35.0,
           vcf: 1.0000,
-          waterSounding: 0.000,
-          waterVolume: 0.000,
+          waterSounding: 0,
+          waterVolume: 0,
         }))
       );
     } else if (preset === 'full') {
@@ -188,12 +189,12 @@ export const CalculatorView: React.FC<CalculatorViewProps> = ({
           return {
             ...t,
             type: 'sounding',
-            value: meta ? parseFloat((meta.refHeight * 0.95).toFixed(3)) : 7.50,
+            value: meta ? Math.round(meta.refHeight * 1000 * 0.95) : 7500,
             density20C: 0.8500,
             temperature: 20.0,
             vcf: 1.0000,
-            waterSounding: 0.000,
-            waterVolume: 0.000,
+            waterSounding: 0,
+            waterVolume: 0,
           };
         })
       );
@@ -209,18 +210,18 @@ export const CalculatorView: React.FC<CalculatorViewProps> = ({
         prev.map(t => ({
           ...t,
           type: 'sounding',
-          value: 0.500,
-          waterSounding: 0.000,
-          waterVolume: 0.000,
+          value: 500,
+          waterSounding: 0,
+          waterVolume: 0,
         }))
       );
     } else if (preset === 'clear') {
       setTankInputs(prev =>
         prev.map(t => ({
           ...t,
-          value: 0.000,
-          waterSounding: 0.000,
-          waterVolume: 0.000,
+          value: 0,
+          waterSounding: 0,
+          waterVolume: 0,
         }))
       );
     }
