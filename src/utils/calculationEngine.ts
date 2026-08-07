@@ -185,7 +185,7 @@ export function lookupTankVolume20C(tankId: string, correctedSounding: number, c
 }
 
 /**
- * Calculate Single Tank Volume
+ * Calculate Single Tank Volume and Weight
  */
 export function calculateSingleTank(
   input: TankInput,
@@ -202,22 +202,28 @@ export function calculateSingleTank(
     : (globalInput.draftAft - globalInput.draftForward);
 
   const list = globalInput.list || 0;
-  const temp = globalInput.temperature ?? 20.0;
+  const temp = input.temperature ?? 20.0;
   const useSteel = globalInput.useSteelExpansion ?? true;
   
-  // Cargo density in kg/m³ (e.g. 850.0). Auto-convert if small value like 0.85 is passed.
-  let rawDensity = globalInput.cargoDensity ?? 850.0;
-  if (rawDensity > 0 && rawDensity < 10) {
-    rawDensity = rawDensity * 1000;
+  // Density in t/m³ (e.g. 0.8500 or 0.9000)
+  let rawDensity = input.density20C ?? 0.8500;
+  if (rawDensity > 10) {
+    rawDensity = rawDensity / 1000.0; // convert kg/m³ to t/m³ if needed
   }
-  const densityVacuum = rawDensity || 850.0;
+  const density20C = rawDensity > 0 ? rawDensity : 0.8500;
 
-  // Air buoyancy correction (typically 1.1 kg/m³ deduction for apparent mass in air)
+  // Air buoyancy value in t/m³ (default 0.0011 t/m³)
   const useAirBuoyancy = globalInput.useAirBuoyancy ?? true;
-  const airBuoyancyDeduction = useAirBuoyancy ? (globalInput.airBuoyancyValue ?? 1.1) : 0;
-  const densityAir = Math.max(0, densityVacuum - airBuoyancyDeduction);
+  let rawBuoyancy = globalInput.airBuoyancyValue ?? 0.0011;
+  if (rawBuoyancy > 0.1) {
+    rawBuoyancy = rawBuoyancy / 1000.0; // convert 1.1 kg/m³ to 0.0011 t/m³
+  }
+  const airBuoyancy = useAirBuoyancy ? rawBuoyancy : 0;
 
-  const vcf = globalInput.vcf || 1.0000;
+  // Weight Correction Factor (WCF) = Density20C - AirBuoyancy
+  const wcfFactor = parseFloat(Math.max(0, density20C - airBuoyancy).toFixed(4));
+
+  const vcfFactor = input.vcf ?? 1.0000;
 
   let rawSounding = 0;
   let rawUllage = 0;
@@ -240,20 +246,36 @@ export function calculateSingleTank(
   const correctedSounding = parseFloat(Math.max(0, rawSounding + totalCorrM).toFixed(3));
   const correctedUllage = parseFloat(Math.max(0, H - correctedSounding).toFixed(3));
 
-  // Capacity lookup at 20°C
-  const volume20C = parseFloat(lookupTankVolume20C(meta.id, correctedSounding, meta).toFixed(3));
+  // Capacity lookup at 20°C (Observed Volume)
+  const obsVolume = parseFloat(lookupTankVolume20C(meta.id, correctedSounding, meta).toFixed(3));
+
+  // Water sounding calculation & table lookup
+  const rawWaterSounding = Math.max(0, input.waterSounding || 0);
+  let correctedWaterSounding = 0;
+  let waterVolume = 0;
+
+  if (rawWaterSounding > 0) {
+    const waterTrimCorrMm = getTrimCorrection(meta.id, rawWaterSounding, trim);
+    const waterListCorrMm = getListCorrection(meta.id, rawWaterSounding, list);
+    correctedWaterSounding = parseFloat(Math.max(0, rawWaterSounding + (waterTrimCorrMm + waterListCorrMm) / 1000.0).toFixed(3));
+    waterVolume = parseFloat(lookupTankVolume20C(meta.id, correctedWaterSounding, meta).toFixed(3));
+  } else {
+    waterVolume = parseFloat((input.waterVolume || 0).toFixed(3));
+  }
+
+  const govVolume = parseFloat(Math.max(0, obsVolume - waterVolume).toFixed(3));
 
   // Temperature & Steel Expansion Factor
   const tempFactor = getTempCorrectionFactor(temp, useSteel);
-  // VCF
-  const vcfFactor = vcf;
 
-  // Actual Volume = Volume20C * TempFactor * VCF
-  const actualVolume = parseFloat((volume20C * tempFactor * vcfFactor).toFixed(3));
-  // Cargo Weight (Metric Tons) = Volume (m³) * Density in Air (kg/m³) / 1000
-  const weightTon = parseFloat(((actualVolume * densityAir) / 1000.0).toFixed(3));
+  // Gross Standard Volume (G.S.V.) = G.O.V. * VCF
+  const gsvVolume = parseFloat((govVolume * vcfFactor).toFixed(3));
 
-  const fillPercentage = parseFloat(((volume20C / (meta.capacity100 || 1)) * 100).toFixed(1));
+  // Net Oil Weight (Metric Tons) = G.S.V. * WCF * (SteelExpansionFactor if enabled else 1.0)
+  const steelMultiplier = useSteel ? tempFactor : 1.0;
+  const weightTon = parseFloat((gsvVolume * wcfFactor * steelMultiplier).toFixed(3));
+
+  const fillPercentage = parseFloat(((obsVolume / (meta.capacity100 || 1)) * 100).toFixed(1));
 
   return {
     tankId: meta.id,
@@ -267,13 +289,17 @@ export function calculateSingleTank(
     totalCorrection: totalCorrMm,
     correctedSounding,
     correctedUllage,
-    volume20C,
+    waterSounding: rawWaterSounding,
+    correctedWaterSounding,
+    density20C: parseFloat(density20C.toFixed(4)),
+    temperature: temp,
+    obsVolume,
+    waterVolume,
+    govVolume,
     tempFactor,
+    wcfFactor,
     vcfFactor,
-    actualVolume,
-    densityVacuum: parseFloat(densityVacuum.toFixed(2)),
-    airBuoyancyDeduction: parseFloat(airBuoyancyDeduction.toFixed(2)),
-    densityAir: parseFloat(densityAir.toFixed(2)),
+    gsvVolume,
     weightTon,
     capacity100: meta.capacity100,
     fillPercentage: Math.min(100, Math.max(0, fillPercentage)),
@@ -295,55 +321,119 @@ export function calculateWholeShip(
     ? globalInput.trimOverride
     : (globalInput.draftAft - globalInput.draftForward);
 
+  const syncFirst = globalInput.syncWithFirstTank ?? true;
+  const firstInput = tankInputs[0];
+  const firstDensity = firstInput?.density20C ?? 0.8500;
+  const firstTemp = firstInput?.temperature ?? 20.0;
+  const firstVcf = firstInput?.vcf ?? 1.0000;
+
+  const effectiveInputs = tankInputs.map((t, idx) => {
+    if (syncFirst && idx > 0) {
+      return {
+        ...t,
+        density20C: firstDensity,
+        temperature: firstTemp,
+        vcf: firstVcf,
+      };
+    }
+    return t;
+  });
+
   const tankResults: TankCalcResult[] = activeTanks.map(meta => {
-    const userInput = tankInputs.find(t => t.tankId === meta.id) || {
+    const userInput = effectiveInputs.find(t => t.tankId === meta.id) || {
       tankId: meta.id,
       type: 'sounding',
       value: 0,
+      density20C: firstDensity,
+      temperature: firstTemp,
+      vcf: firstVcf,
     };
     return calculateSingleTank(userInput, globalInput, activeTanks);
   });
 
-  const tanksTotalVolume = parseFloat(
-    tankResults.reduce((acc, curr) => acc + curr.actualVolume, 0).toFixed(3)
+  const totalObsVolume = parseFloat(
+    tankResults.reduce((acc, curr) => acc + curr.obsVolume, 0).toFixed(3)
+  );
+
+  const totalGovVolume = parseFloat(
+    tankResults.reduce((acc, curr) => acc + curr.govVolume, 0).toFixed(3)
+  );
+
+  const totalGsvVolume = parseFloat(
+    tankResults.reduce((acc, curr) => acc + curr.gsvVolume, 0).toFixed(3)
   );
 
   const tanksTotalWeight = parseFloat(
     tankResults.reduce((acc, curr) => acc + curr.weightTon, 0).toFixed(3)
   );
 
-  let rawDensity = globalInput.cargoDensity ?? 850.0;
-  if (rawDensity > 0 && rawDensity < 10) rawDensity = rawDensity * 1000;
-  const densityVac = rawDensity || 850.0;
-  const useAirBuoyancy = globalInput.useAirBuoyancy ?? true;
-  const airBuoyancyValue = useAirBuoyancy ? (globalInput.airBuoyancyValue ?? 1.1) : 0;
-  const densityInAir = Math.max(0, densityVac - airBuoyancyValue);
+  // WCF, VCF, TempFactor for pipeline and bottom ROB
+  let rawBuoyancy = globalInput.airBuoyancyValue ?? 0.0011;
+  if (rawBuoyancy > 0.1) rawBuoyancy = rawBuoyancy / 1000.0;
+
+  // Pipeline calculations
+  const pipelineDensity = globalInput.pipelineDensity ?? (syncFirst ? firstDensity : 0.8500);
+  const pipelineTemp = globalInput.pipelineTemp ?? (syncFirst ? firstTemp : 20.0);
+  const pipelineVcf = globalInput.pipelineVcf ?? (syncFirst ? firstVcf : 1.0000);
+  const pipelineWcf = Math.max(0, pipelineDensity - rawBuoyancy);
+  const pipelineTempFactor = getTempCorrectionFactor(pipelineTemp, globalInput.useSteelExpansion ?? true);
+  const pipeSteelMultiplier = (globalInput.useSteelExpansion ?? true) ? pipelineTempFactor : 1.0;
 
   const pipelineVolume = Math.max(0, globalInput.pipelineVolume || 0);
-  const pipelineWeight = parseFloat(((pipelineVolume * densityInAir) / 1000.0).toFixed(3));
+  const pipelineGsv = parseFloat((pipelineVolume * pipelineVcf).toFixed(3));
+  const pipelineWeight = parseFloat((pipelineGsv * pipelineWcf * pipeSteelMultiplier).toFixed(3));
 
-  const totalVolume = parseFloat((tanksTotalVolume + pipelineVolume).toFixed(3));
-  const totalWeight = parseFloat((tanksTotalWeight + pipelineWeight).toFixed(3));
+  // Bottom ROB calculations
+  const bottomRobDensity = globalInput.bottomRobDensity ?? (syncFirst ? firstDensity : 0.8500);
+  const bottomRobTemp = globalInput.bottomRobTemp ?? (syncFirst ? firstTemp : 20.0);
+  const bottomRobVcf = globalInput.bottomRobVcf ?? (syncFirst ? firstVcf : 1.0000);
+  const bottomRobWcf = Math.max(0, bottomRobDensity - rawBuoyancy);
+  const bottomRobTempFactor = getTempCorrectionFactor(bottomRobTemp, globalInput.useSteelExpansion ?? true);
+  const robSteelMultiplier = (globalInput.useSteelExpansion ?? true) ? bottomRobTempFactor : 1.0;
+
+  const bottomRobVolume = Math.max(0, globalInput.bottomRobVolume || 0);
+  const bottomRobGsv = parseFloat((bottomRobVolume * bottomRobVcf).toFixed(3));
+  const bottomRobWeight = parseFloat((bottomRobGsv * bottomRobWcf * robSteelMultiplier).toFixed(3));
+
+  const totalVolume = parseFloat((totalGovVolume + pipelineVolume + bottomRobVolume).toFixed(3));
+  const totalGsv = parseFloat((totalGsvVolume + pipelineGsv + bottomRobGsv).toFixed(3));
+  const totalWeight = parseFloat((tanksTotalWeight + pipelineWeight + bottomRobWeight).toFixed(3));
 
   return {
     vesselName: customVesselName || VESSEL_INFO.name,
     certificateNo: customCertNo || VESSEL_INFO.certificateNo,
+    oilType: globalInput.oilType || '柴油',
+    dateStr: globalInput.dateStr || new Date().toISOString().slice(0, 10),
     trim: parseFloat(trim.toFixed(2)),
     list: globalInput.list,
-    temperature: globalInput.temperature,
-    useSteelExpansion: globalInput.useSteelExpansion,
-    density: parseFloat(densityVac.toFixed(2)),
-    vcf: globalInput.vcf || 1.0000,
-    useAirBuoyancy,
-    airBuoyancyValue: parseFloat(airBuoyancyValue.toFixed(2)),
-    densityInAir: parseFloat(densityInAir.toFixed(2)),
-    tanksTotalVolume,
+    useSteelExpansion: globalInput.useSteelExpansion ?? true,
+    syncWithFirstTank: syncFirst,
+    totalObsVolume,
+    totalGovVolume,
+    totalGsvVolume,
+    tanksTotalVolume: totalGovVolume,
     tanksTotalWeight,
     pipelineVolume: parseFloat(pipelineVolume.toFixed(3)),
+    pipelineDensity: parseFloat(pipelineDensity.toFixed(4)),
+    pipelineTemp: parseFloat(pipelineTemp.toFixed(1)),
+    pipelineTempFactor: parseFloat(pipelineTempFactor.toFixed(5)),
+    pipelineWcf: parseFloat(pipelineWcf.toFixed(4)),
+    pipelineVcf: parseFloat(pipelineVcf.toFixed(4)),
+    pipelineGsv,
     pipelineWeight,
+    bottomRobVolume: parseFloat(bottomRobVolume.toFixed(3)),
+    bottomRobDensity: parseFloat(bottomRobDensity.toFixed(4)),
+    bottomRobTemp: parseFloat(bottomRobTemp.toFixed(1)),
+    bottomRobTempFactor: parseFloat(bottomRobTempFactor.toFixed(5)),
+    bottomRobWcf: parseFloat(bottomRobWcf.toFixed(4)),
+    bottomRobVcf: parseFloat(bottomRobVcf.toFixed(4)),
+    bottomRobGsv,
+    bottomRobWeight,
     totalVolume,
+    totalGsv,
     totalWeight,
     tankResults,
     timestamp: new Date().toLocaleString('zh-CN'),
   };
 }
+

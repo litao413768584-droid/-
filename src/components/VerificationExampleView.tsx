@@ -29,12 +29,10 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
       draftForward: 2.46,
       trimOverride: trimInput,
       list: listInput,
-      temperature: tempInput,
-      cargoDensity: 850.0,
       useSteelExpansion: true,
-      vcf: 1.0000,
+      syncWithFirstTank: true,
       useAirBuoyancy: true,
-      airBuoyancyValue: 1.1,
+      airBuoyancyValue: 0.0011,
     },
     activeTanks
   );
@@ -58,7 +56,7 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
           </div>
 
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2 text-amber-300 text-xs font-mono">
-            标准验算输出 ({targetTank?.name || '货油1舱(左)'}): <strong>{result.actualVolume.toFixed(3)} m³</strong>
+            标准验算输出 ({targetTank?.name || '货油1舱(左)'}): <strong>{result.govVolume.toFixed(3)} m³</strong>
           </div>
         </div>
       </div>
@@ -192,7 +190,7 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
 
           <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-baseline font-mono">
             <span className="text-xs text-slate-400 font-sans">20°C舱容量 Vb:</span>
-            <span className="text-base font-extrabold text-emerald-300">{result.volume20C.toFixed(3)} m³</span>
+            <span className="text-base font-extrabold text-emerald-300">{result.obsVolume.toFixed(3)} m³</span>
           </div>
         </div>
 
@@ -217,14 +215,14 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
               </div>
 
               <div className="pt-1 border-t border-slate-800 text-[10px] text-slate-400 font-sans">
-                实际容量算式: V_actual = Vb × K = {result.volume20C.toFixed(3)} × {result.tempFactor.toFixed(5)}
+                实际容量算式: V_actual = Vb × K = {result.obsVolume.toFixed(3)} × {result.tempFactor.toFixed(5)}
               </div>
             </div>
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-baseline font-mono bg-blue-950/40 p-2.5 rounded-lg border border-blue-500/30">
             <span className="text-xs text-blue-200 font-sans font-bold">实际舱容量 Actual Volume:</span>
-            <span className="text-lg font-extrabold text-blue-300">{result.actualVolume.toFixed(3)} m³</span>
+            <span className="text-lg font-extrabold text-blue-300">{result.govVolume.toFixed(3)} m³</span>
           </div>
         </div>
 

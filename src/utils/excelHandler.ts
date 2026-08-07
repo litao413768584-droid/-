@@ -206,19 +206,24 @@ export async function parseExcelFile(file: File): Promise<{
           draftForward: draftFwd,
           trimOverride,
           list,
-          temperature: temp,
-          cargoDensity: density > 0 && density < 10 ? density * 1000 : density,
+          oilType: '柴油',
+          dateStr: new Date().toISOString().slice(0, 10),
           useSteelExpansion: true,
-          vcf: 1.0000,
+          syncWithFirstTank: true,
           useAirBuoyancy: true,
-          airBuoyancyValue: 1.1,
+          airBuoyancyValue: 0.0011,
         };
 
         const tankInputs: TankInput[] = TANKS_META.map(t => {
-          return tankInputsMap.get(t.id) || {
+          const item = tankInputsMap.get(t.id);
+          return {
             tankId: t.id,
-            type: 'sounding',
-            value: 0,
+            type: item?.type || 'sounding',
+            value: item?.value || 0,
+            density20C: density > 0 && density < 2 ? density : 0.8500,
+            temperature: temp,
+            vcf: 1.0000,
+            waterVolume: 0.000,
           };
         });
 
@@ -234,120 +239,137 @@ export async function parseExcelFile(file: File): Promise<{
 }
 
 /**
- * Export full calculation results into styled Excel workbook
+ * Export full calculation results into styled Excel workbook matching "燃油舱计量" sheet
  */
 export function exportCalculationResultsExcel(summary: ShipCalcSummary) {
   const wb = XLSX.utils.book_new();
 
   const exportData: any[][] = [
-    [`${summary.vesselName} 舱容量计算报告 (Volume Calculation Report)`],
-    [`检定证书编号: ${summary.certificateNo}`, `计算时间: ${summary.timestamp}`],
+    [`${summary.vesselName} 燃油舱计量汇总表`],
+    [`油品: ${summary.oilType}`, `纵倾: ${summary.trim >= 0 ? '+' : ''}${summary.trim} 米`, `是否算钢膨: ${summary.useSteelExpansion ? '是' : '否'}`, `日期: ${summary.dateStr}`],
     [],
-    ['-- 航次状态参数 Voyage Parameters --'],
     [
-      `纵倾 Trim: ${summary.trim >= 0 ? '+' : ''}${summary.trim} m`,
-      `横倾 List: ${summary.list >= 0 ? '+' : ''}${summary.list} °`,
-      `舱壁温度 Temp: ${summary.temperature} °C`,
-      `钢膨修正: ${summary.useSteelExpansion ? '已启用' : '未启用'}`,
-    ],
-    [
-      `真空密度 Vacuum Density: ${summary.density} kg/m³`,
-      `VCF 修正: ${summary.vcf}`,
-      `空气浮力扣减: ${summary.useAirBuoyancy ? `-${summary.airBuoyancyValue} kg/m³` : '0 kg/m³'}`,
-      `空气中计算视密度: ${summary.densityInAir} kg/m³`,
-    ],
-    [],
-    ['-- 舱容计算明细表 Tank Calculation Details --'],
-    [
-      '序号 No.',
-      '舱名 Tank Name',
-      '舱代码 Code',
-      '测量类型',
-      '测量值 (m)',
-      '纵倾修正 (mm)',
-      '横倾修正 (mm)',
-      '合计修正 (mm)',
-      '修正实高 (m)',
-      '修正空高 (m)',
-      '20°C容量 (m³)',
-      '温度修正系数 K',
-      'VCF',
-      '实际容积 (m³)',
-      '货物重量 (t)',
-      '充满率 (%)',
+      '舱号',
+      '观测高度类型',
+      '测量值 (米)',
+      '纵/横倾修正后 (米)',
+      '20°C标密 (t/m³)',
+      '温度 (°C)',
+      '观测体积 OBS. VOL (m³)',
+      '水高 (米)',
+      '明水扣除 (m³)',
+      '实际体积 G.O.V (m³)',
+      '钢材膨胀系数 TK EXP.',
+      '重量修正系数 WCF',
+      '体积修正系数 VCF',
+      '总标准体积 G.S.V (m³)',
+      `净油重量 ${summary.useSteelExpansion ? '(钢膨修正后)' : '(未经钢膨修正)'} (吨)`,
     ],
   ];
 
-  summary.tankResults.forEach((tank, index) => {
+  summary.tankResults.forEach((tank) => {
     exportData.push([
-      index + 1,
       tank.tankName,
-      tank.tankId,
       tank.type === 'sounding' ? '实高' : '空高',
       tank.inputValue,
-      tank.trimCorrection,
-      tank.listCorrection,
-      tank.totalCorrection,
       tank.correctedSounding,
-      tank.correctedUllage,
-      tank.volume20C,
-      tank.tempFactor,
-      tank.vcfFactor,
-      tank.actualVolume,
+      tank.density20C.toFixed(4),
+      tank.temperature.toFixed(1),
+      tank.obsVolume,
+      tank.waterSounding,
+      tank.waterVolume,
+      tank.govVolume,
+      summary.useSteelExpansion ? tank.tempFactor.toFixed(5) : 'NIL',
+      tank.wcfFactor.toFixed(4),
+      tank.vcfFactor.toFixed(4),
+      tank.gsvVolume,
       tank.weightTon,
-      `${tank.fillPercentage}%`,
     ]);
   });
 
   exportData.push([]);
-  exportData.push([
-    '各舱小计 Tanks Subtotal:',
-    '', '', '', '', '', '', '', '', '', '', '', '',
-    summary.tanksTotalVolume,
-    summary.tanksTotalWeight,
-    '',
-  ]);
 
   if (summary.pipelineVolume > 0) {
     exportData.push([
-      '管线容积 Pipeline Volume:',
-      '', '', '', '', '', '', '', '', '', '', '', '',
+      '管线 (Pipeline)',
+      '-',
+      '-',
+      '-',
+      summary.pipelineDensity.toFixed(4),
+      summary.pipelineTemp.toFixed(1),
       summary.pipelineVolume,
+      0,
+      0,
+      summary.pipelineVolume,
+      summary.useSteelExpansion ? summary.pipelineTempFactor.toFixed(5) : 'NIL',
+      summary.pipelineWcf.toFixed(4),
+      summary.pipelineVcf.toFixed(4),
+      summary.pipelineGsv,
       summary.pipelineWeight,
-      '',
+    ]);
+  }
+
+  if (summary.bottomRobVolume > 0) {
+    exportData.push([
+      '底油 (Unpumpable ROB)',
+      '-',
+      '-',
+      '-',
+      summary.bottomRobDensity.toFixed(4),
+      summary.bottomRobTemp.toFixed(1),
+      summary.bottomRobVolume,
+      0,
+      0,
+      summary.bottomRobVolume,
+      summary.useSteelExpansion ? summary.bottomRobTempFactor.toFixed(5) : 'NIL',
+      summary.bottomRobWcf.toFixed(4),
+      summary.bottomRobVcf.toFixed(4),
+      summary.bottomRobGsv,
+      summary.bottomRobWeight,
     ]);
   }
 
   exportData.push([
-    '全舱总计 Grand Total:',
-    '', '', '', '', '', '', '', '', '', '', '', '',
-    summary.totalVolume,
-    summary.totalWeight,
+    '总量 (Grand Total)',
     '',
+    '',
+    '',
+    '',
+    '',
+    summary.totalObsVolume,
+    '',
+    (summary.totalObsVolume - summary.totalGovVolume).toFixed(3),
+    summary.totalVolume,
+    '',
+    '',
+    '',
+    summary.totalGsv,
+    summary.totalWeight,
   ]);
 
   const ws = XLSX.utils.aoa_to_sheet(exportData);
 
   ws['!cols'] = [
-    { wch: 8 },
-    { wch: 18 },
-    { wch: 10 },
-    { wch: 10 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 15 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 14 },
-    { wch: 12 },
+    { wch: 18 }, // 舱号
+    { wch: 12 }, // 类型
+    { wch: 12 }, // 测量值
+    { wch: 18 }, // 修正后
+    { wch: 14 }, // 标密
+    { wch: 10 }, // 温度
+    { wch: 20 }, // OBS VOL
+    { wch: 12 }, // 水高
+    { wch: 14 }, // 明水扣除
+    { wch: 20 }, // GOV
+    { wch: 18 }, // TK EXP
+    { wch: 18 }, // WCF
+    { wch: 18 }, // VCF
+    { wch: 20 }, // GSV
+    { wch: 24 }, // 净油重量
   ];
 
-  XLSX.utils.book_append_sheet(wb, ws, '舱容计算结果 (Results)');
+  XLSX.utils.book_append_sheet(wb, ws, '燃油舱计量汇总');
 
-  const dateStr = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `${summary.vesselName}_舱容计算报告_${dateStr}.xlsx`);
+  const dateStr = summary.dateStr || new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `${summary.vesselName}_燃油舱计量汇总表_${dateStr}.xlsx`);
 }
+
