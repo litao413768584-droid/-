@@ -33,6 +33,7 @@ export default function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        vesselMeta={activeVesselMeta}
         currentVesselName={activeVesselMeta?.name}
         currentCertNo={activeVesselMeta?.certificateNo}
       />
@@ -41,6 +42,7 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {activeTab === 'calculator' && (
           <CalculatorView
+            vesselMeta={activeVesselMeta}
             customTanks={activeVesselMeta?.tanks}
             customVesselName={activeVesselMeta?.name}
             customCertNo={activeVesselMeta?.certificateNo}
@@ -52,6 +54,7 @@ export default function App() {
 
         {activeTab === 'pdf' && (
           <PdfUploadGeneratorView
+            currentVesselMeta={activeVesselMeta}
             onApplyVesselToCalculator={handleApplyVesselToCalculator}
           />
         )}

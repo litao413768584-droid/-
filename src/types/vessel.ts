@@ -33,17 +33,21 @@ export interface VesselMetadata {
   issuingAuthority: string;
   tankCount: number;
   tanks: TankMeta[];
+  onDeckPipeNo1?: number; // 甲板上部 1# 管线 (m³)
+  onDeckPipeNo2?: number; // 甲板上部 2# 管线 (m³)
+  pumpRoomPipeNo1?: number; // 泵舱 1# 管线 (m³)
+  pumpRoomPipeNo2?: number; // 泵舱 2# 管线 (m³)
 }
 
 export interface TankInput {
   tankId: string;
   type: MeasurementType;
-  value: number; // 实高或空高数值 (m)
-  density20C?: number; // 20°C标密 (t/m³ 或 kg/L, e.g. 0.8500 或 0.9000)
-  temperature?: number; // 舱温 (°C, e.g. 20.0, 60.0)
-  vcf?: number; // 体积修正系数 VCF (e.g. 0.9689, 1.0000)
-  waterSounding?: number; // 测得的水高 (m, 默认 0.000)
-  waterVolume?: number; // 明水/水份扣除 (m³, 根据水高或自动计算)
+  value: number | string; // 实高或空高数值 (m 或 mm)
+  density20C?: number | string; // 20°C标密 (t/m³)
+  temperature?: number | string; // 舱温 (°C)
+  vcf?: number | string; // 体积修正系数 VCF
+  waterSounding?: number | string; // 测得的水高 (mm 或 m)
+  waterVolume?: number | string; // 明水/水份扣除 (m³)
 }
 
 export interface ShipGlobalInput {
@@ -55,23 +59,24 @@ export interface ShipGlobalInput {
   dateStr?: string; // 计量日期
   useSteelExpansion: boolean; // 是否算钢膨，默认 true
   syncWithFirstTank: boolean; // 体积/密度修正系数配置: 是否全部与第一个舱一样 (true) 还是每个舱不同 (false)
+  correctWaterSounding?: boolean; // 水高是否参与纵横倾修正，默认 true
   useAirBuoyancy: boolean; // 重量修正系数是否扣除空气浮力，默认 true
   airBuoyancyValue: number; // 空气浮力扣除值 (t/m³ 或 kg/m³), 默认 0.0011 t/m³ (1.1 kg/m³)
-  pipelineVolume?: number; // 管线容积 (m³), 默认 0
-  pipelineDensity?: number; // 管线 20°C标密 (t/m³)
-  pipelineTemp?: number; // 管线温度 (°C)
-  pipelineVcf?: number; // 管线 VCF
-  bottomRobVolume?: number; // 底油容积 (m³), 默认 0
-  bottomRobDensity?: number; // 底油 20°C标密 (t/m³)
-  bottomRobTemp?: number; // 底油温度 (°C)
-  bottomRobVcf?: number; // 底油 VCF
+  pipelineVolume?: number | string; // 管线容积 (m³), 默认 0
+  pipelineDensity?: number | string; // 管线 20°C标密 (t/m³)
+  pipelineTemp?: number | string; // 管线温度 (°C)
+  pipelineVcf?: number | string; // 管线 VCF
+  bottomRobVolume?: number | string; // 底油容积 (m³), 默认 0
+  bottomRobDensity?: number | string; // 底油 20°C标密 (t/m³)
+  bottomRobTemp?: number | string; // 底油温度 (°C)
+  bottomRobVcf?: number | string; // 底油 VCF
 }
 
 export interface TankCalcResult {
   tankId: string;
   tankName: string;
   type: MeasurementType;
-  inputValue: number; // 原始实高/空高 (m)
+  inputValue: number; // 原始实高/空高 (m或mm)
   sounding: number; // 换算得到的实高 (m)
   ullage: number; // 换算得到的空高 (m)
   trimCorrection: number; // 纵倾修正值 (mm)
@@ -80,7 +85,10 @@ export interface TankCalcResult {
   correctedSounding: number; // 修正后实高/横倾纵倾修正后高度 (m)
   correctedUllage: number; // 修正后空高 (m)
   waterSounding: number; // 测得的水高 (m)
+  waterSoundingMm: number; // 测得水高 (mm)
+  waterCorrectionMm: number; // 水高纵横倾修正量 (mm)
   correctedWaterSounding: number; // 修正后水高 (m)
+  correctedWaterSoundingMm: number; // 修正后水高 (mm)
   density20C: number; // 20°C标密 (t/m³) e.g. 0.9000
   temperature: number; // 舱壁温度 (°C) e.g. 60.0
   obsVolume: number; // 观测体积 OBS. VOL. (m³)

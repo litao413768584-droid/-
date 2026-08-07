@@ -142,9 +142,10 @@ export function getListCorrection(tankId: string, sounding: number, list: number
  * If useSteelExpansion is true: K(t) = 1.00000 + (t - 20) * 0.000036
  * Else: K(t) = 1.00000
  */
-export function getTempCorrectionFactor(tempCelsius: number, useSteelExpansion: boolean = true): number {
+export function getTempCorrectionFactor(tempCelsius: any, useSteelExpansion: boolean = true): number {
   if (!useSteelExpansion) return 1.00000;
-  return parseFloat((1.00000 + (tempCelsius - 20) * 0.000036).toFixed(5));
+  const t = typeof tempCelsius === 'number' ? tempCelsius : parseFloat(tempCelsius) || 20.0;
+  return parseFloat((1.00000 + (t - 20) * 0.000036).toFixed(5));
 }
 
 /**
@@ -202,19 +203,27 @@ export function calculateSingleTank(
     : (globalInput.draftAft - globalInput.draftForward);
 
   const list = globalInput.list || 0;
-  const temp = input.temperature ?? 20.0;
+  
+  // Safe Temperature parsing
+  const parsedTemp = parseFloat(input.temperature as any);
+  const temp = !isNaN(parsedTemp) ? parsedTemp : 20.0;
+
   const useSteel = globalInput.useSteelExpansion ?? true;
   
   // Density in t/m³ (e.g. 0.8500 or 0.9000)
-  let rawDensity = input.density20C ?? 0.8500;
+  let rawDensity = parseFloat(input.density20C as any);
+  if (isNaN(rawDensity) || rawDensity <= 0) {
+    rawDensity = 0.8500;
+  }
   if (rawDensity > 10) {
     rawDensity = rawDensity / 1000.0; // convert kg/m³ to t/m³ if needed
   }
-  const density20C = rawDensity > 0 ? rawDensity : 0.8500;
+  const density20C = rawDensity;
 
   // Air buoyancy value in t/m³ (default 0.0011 t/m³)
   const useAirBuoyancy = globalInput.useAirBuoyancy ?? true;
-  let rawBuoyancy = globalInput.airBuoyancyValue ?? 0.0011;
+  let rawBuoyancy = parseFloat(globalInput.airBuoyancyValue as any);
+  if (isNaN(rawBuoyancy)) rawBuoyancy = 0.0011;
   if (rawBuoyancy > 0.1) {
     rawBuoyancy = rawBuoyancy / 1000.0; // convert 1.1 kg/m³ to 0.0011 t/m³
   }
@@ -223,16 +232,22 @@ export function calculateSingleTank(
   // Weight Correction Factor (WCF) = Density20C - AirBuoyancy
   const wcfFactor = parseFloat(Math.max(0, density20C - airBuoyancy).toFixed(4));
 
-  const vcfFactor = input.vcf ?? 1.0000;
+  const parsedVcf = parseFloat(input.vcf as any);
+  const vcfFactor = !isNaN(parsedVcf) && parsedVcf > 0 ? parsedVcf : 1.0000;
+
+  let rawVal = parseFloat(input.value as any);
+  if (isNaN(rawVal) || rawVal < 0) rawVal = 0;
+  // Convert mm to meters: input value is in mm (e.g. 3523 mm)
+  const valM = rawVal / 1000.0;
 
   let rawSounding = 0;
   let rawUllage = 0;
 
   if (input.type === 'sounding') {
-    rawSounding = Math.max(0, input.value);
+    rawSounding = Math.max(0, valM);
     rawUllage = Math.max(0, H - rawSounding);
   } else {
-    rawUllage = Math.max(0, input.value);
+    rawUllage = Math.max(0, valM);
     rawSounding = Math.max(0, H - rawUllage);
   }
 
@@ -250,17 +265,30 @@ export function calculateSingleTank(
   const obsVolume = parseFloat(lookupTankVolume20C(meta.id, correctedSounding, meta).toFixed(3));
 
   // Water sounding calculation & table lookup
-  const rawWaterSounding = Math.max(0, input.waterSounding || 0);
-  let correctedWaterSounding = 0;
+  let rawWaterVal = parseFloat(input.waterSounding as any);
+  if (isNaN(rawWaterVal) || rawWaterVal < 0) rawWaterVal = 0;
+  // Convert mm to meters: input is in mm (e.g. 30 mm)
+  const rawWaterSoundingM = rawWaterVal / 1000.0;
+
+  const correctWaterSounding = globalInput.correctWaterSounding ?? true;
+
+  let waterTrimCorrMm = 0;
+  let waterListCorrMm = 0;
+  let totalWaterCorrMm = 0;
+  let correctedWaterSoundingM = rawWaterSoundingM;
   let waterVolume = 0;
 
-  if (rawWaterSounding > 0) {
-    const waterTrimCorrMm = getTrimCorrection(meta.id, rawWaterSounding, trim);
-    const waterListCorrMm = getListCorrection(meta.id, rawWaterSounding, list);
-    correctedWaterSounding = parseFloat(Math.max(0, rawWaterSounding + (waterTrimCorrMm + waterListCorrMm) / 1000.0).toFixed(3));
-    waterVolume = parseFloat(lookupTankVolume20C(meta.id, correctedWaterSounding, meta).toFixed(3));
+  if (rawWaterSoundingM > 0) {
+    if (correctWaterSounding) {
+      waterTrimCorrMm = getTrimCorrection(meta.id, rawWaterSoundingM, trim);
+      waterListCorrMm = getListCorrection(meta.id, rawWaterSoundingM, list);
+      totalWaterCorrMm = waterTrimCorrMm + waterListCorrMm;
+      correctedWaterSoundingM = parseFloat(Math.max(0, rawWaterSoundingM + totalWaterCorrMm / 1000.0).toFixed(3));
+    }
+    waterVolume = parseFloat(lookupTankVolume20C(meta.id, correctedWaterSoundingM, meta).toFixed(3));
   } else {
-    waterVolume = parseFloat((input.waterVolume || 0).toFixed(3));
+    const rawWaterVol = parseFloat(input.waterVolume as any);
+    waterVolume = !isNaN(rawWaterVol) && rawWaterVol > 0 ? parseFloat(rawWaterVol.toFixed(3)) : 0;
   }
 
   const govVolume = parseFloat(Math.max(0, obsVolume - waterVolume).toFixed(3));
@@ -281,7 +309,7 @@ export function calculateSingleTank(
     tankId: meta.id,
     tankName: meta.name,
     type: input.type,
-    inputValue: input.value,
+    inputValue: rawVal,
     sounding: parseFloat(rawSounding.toFixed(3)),
     ullage: parseFloat(rawUllage.toFixed(3)),
     trimCorrection: trimCorrMm,
@@ -289,8 +317,11 @@ export function calculateSingleTank(
     totalCorrection: totalCorrMm,
     correctedSounding,
     correctedUllage,
-    waterSounding: rawWaterSounding,
-    correctedWaterSounding,
+    waterSounding: rawWaterSoundingM,
+    waterSoundingMm: parseFloat((rawWaterSoundingM * 1000).toFixed(1)),
+    waterCorrectionMm: parseFloat(totalWaterCorrMm.toFixed(1)),
+    correctedWaterSounding: correctedWaterSoundingM,
+    correctedWaterSoundingMm: parseFloat((correctedWaterSoundingM * 1000).toFixed(1)),
     density20C: parseFloat(density20C.toFixed(4)),
     temperature: temp,
     obsVolume,
@@ -323,9 +354,12 @@ export function calculateWholeShip(
 
   const syncFirst = globalInput.syncWithFirstTank ?? true;
   const firstInput = tankInputs[0];
-  const firstDensity = firstInput?.density20C ?? 0.8500;
-  const firstTemp = firstInput?.temperature ?? 20.0;
-  const firstVcf = firstInput?.vcf ?? 1.0000;
+  const pFirstDensity = parseFloat(firstInput?.density20C as any);
+  const firstDensity = !isNaN(pFirstDensity) && pFirstDensity > 0 ? pFirstDensity : 0.8500;
+  const pFirstTemp = parseFloat(firstInput?.temperature as any);
+  const firstTemp = !isNaN(pFirstTemp) ? pFirstTemp : 20.0;
+  const pFirstVcf = parseFloat(firstInput?.vcf as any);
+  const firstVcf = !isNaN(pFirstVcf) && pFirstVcf > 0 ? pFirstVcf : 1.0000;
 
   const effectiveInputs = tankInputs.map((t, idx) => {
     if (syncFirst && idx > 0) {
@@ -367,31 +401,52 @@ export function calculateWholeShip(
     tankResults.reduce((acc, curr) => acc + curr.weightTon, 0).toFixed(3)
   );
 
+  // Helper to parse numeric values from globalInput strings/numbers safely
+  const parseNum = (val: any): number | undefined => {
+    if (val === undefined || val === null || val === '') return undefined;
+    const n = parseFloat(val);
+    return isNaN(n) ? undefined : n;
+  };
+
   // WCF, VCF, TempFactor for pipeline and bottom ROB
   let rawBuoyancy = globalInput.airBuoyancyValue ?? 0.0011;
   if (rawBuoyancy > 0.1) rawBuoyancy = rawBuoyancy / 1000.0;
 
   // Pipeline calculations
-  const pipelineDensity = globalInput.pipelineDensity ?? (syncFirst ? firstDensity : 0.8500);
-  const pipelineTemp = globalInput.pipelineTemp ?? (syncFirst ? firstTemp : 20.0);
-  const pipelineVcf = globalInput.pipelineVcf ?? (syncFirst ? firstVcf : 1.0000);
+  const pDensity = parseNum(globalInput.pipelineDensity);
+  const pipelineDensity = pDensity !== undefined ? pDensity : (syncFirst ? firstDensity : 0.8500);
+
+  const pTemp = parseNum(globalInput.pipelineTemp);
+  const pipelineTemp = pTemp !== undefined ? pTemp : (syncFirst ? firstTemp : 20.0);
+
+  const pVcf = parseNum(globalInput.pipelineVcf);
+  const pipelineVcf = pVcf !== undefined ? pVcf : (syncFirst ? firstVcf : 1.0000);
+
   const pipelineWcf = Math.max(0, pipelineDensity - rawBuoyancy);
   const pipelineTempFactor = getTempCorrectionFactor(pipelineTemp, globalInput.useSteelExpansion ?? true);
   const pipeSteelMultiplier = (globalInput.useSteelExpansion ?? true) ? pipelineTempFactor : 1.0;
 
-  const pipelineVolume = Math.max(0, globalInput.pipelineVolume || 0);
+  const pVol = parseNum(globalInput.pipelineVolume);
+  const pipelineVolume = Math.max(0, pVol ?? 0);
   const pipelineGsv = parseFloat((pipelineVolume * pipelineVcf).toFixed(3));
   const pipelineWeight = parseFloat((pipelineGsv * pipelineWcf * pipeSteelMultiplier).toFixed(3));
 
   // Bottom ROB calculations
-  const bottomRobDensity = globalInput.bottomRobDensity ?? (syncFirst ? firstDensity : 0.8500);
-  const bottomRobTemp = globalInput.bottomRobTemp ?? (syncFirst ? firstTemp : 20.0);
-  const bottomRobVcf = globalInput.bottomRobVcf ?? (syncFirst ? firstVcf : 1.0000);
+  const robDensity = parseNum(globalInput.bottomRobDensity);
+  const bottomRobDensity = robDensity !== undefined ? robDensity : (syncFirst ? firstDensity : 0.8500);
+
+  const robTemp = parseNum(globalInput.bottomRobTemp);
+  const bottomRobTemp = robTemp !== undefined ? robTemp : (syncFirst ? firstTemp : 20.0);
+
+  const robVcf = parseNum(globalInput.bottomRobVcf);
+  const bottomRobVcf = robVcf !== undefined ? robVcf : (syncFirst ? firstVcf : 1.0000);
+
   const bottomRobWcf = Math.max(0, bottomRobDensity - rawBuoyancy);
   const bottomRobTempFactor = getTempCorrectionFactor(bottomRobTemp, globalInput.useSteelExpansion ?? true);
   const robSteelMultiplier = (globalInput.useSteelExpansion ?? true) ? bottomRobTempFactor : 1.0;
 
-  const bottomRobVolume = Math.max(0, globalInput.bottomRobVolume || 0);
+  const robVol = parseNum(globalInput.bottomRobVolume);
+  const bottomRobVolume = Math.max(0, robVol ?? 0);
   const bottomRobGsv = parseFloat((bottomRobVolume * bottomRobVcf).toFixed(3));
   const bottomRobWeight = parseFloat((bottomRobGsv * bottomRobWcf * robSteelMultiplier).toFixed(3));
 

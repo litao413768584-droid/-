@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 
 interface PdfUploadGeneratorViewProps {
+  currentVesselMeta?: VesselMetadata | null;
   onApplyVesselToCalculator: (
     vesselMeta: VesselMetadata,
     globalInput?: ShipGlobalInput,
@@ -26,25 +27,29 @@ interface PdfUploadGeneratorViewProps {
 // Default Built-in Vessel Templates for instant testing
 const PRESET_VESSELS: VesselMetadata[] = [
   {
-    name: "东城油17 (DONG CHENG YOU 17)",
+    name: "东城油17",
     englishName: "DONG CHENG YOU 17",
-    certificateNo: "CRZH V24030537",
-    validPeriod: "2024-03-05 至 2029-03-04",
+    certificateNo: "V24030537",
+    validPeriod: "2024-08-05 至 2027-08-04",
     issuingAuthority: "国家船舶舱容积计量站 (CRZH)",
     tankCount: 12,
+    onDeckPipeNo1: 3.479,
+    onDeckPipeNo2: 3.694,
+    pumpRoomPipeNo1: 0.677,
+    pumpRoomPipeNo2: 0.550,
     tanks: [
-      { id: 'P1', name: '左.1 P.1', code: 'P1', refHeight: 8.960, zeroUllageRef: 760, capacity100: 341.250, capacity98: 334.425, capacity95: 324.188, position: 'port' },
-      { id: 'S1', name: '右.1 S.1', code: 'S1', refHeight: 8.960, zeroUllageRef: 760, capacity100: 341.250, capacity98: 334.425, capacity95: 324.188, position: 'starboard' },
-      { id: 'P2', name: '左.2 P.2', code: 'P2', refHeight: 8.950, zeroUllageRef: 750, capacity100: 420.100, capacity98: 411.698, capacity95: 399.095, position: 'port' },
-      { id: 'S2', name: '右.2 S.2', code: 'S2', refHeight: 8.950, zeroUllageRef: 750, capacity100: 420.100, capacity98: 411.698, capacity95: 399.095, position: 'starboard' },
-      { id: 'P3', name: '左.3 P.3', code: 'P3', refHeight: 8.940, zeroUllageRef: 740, capacity100: 418.500, capacity98: 410.130, capacity95: 397.575, position: 'port' },
-      { id: 'S3', name: '右.3 S.3', code: 'S3', refHeight: 8.940, zeroUllageRef: 740, capacity100: 418.500, capacity98: 410.130, capacity95: 397.575, position: 'starboard' },
-      { id: 'P4', name: '左.4 P.4', code: 'P4', refHeight: 8.950, zeroUllageRef: 750, capacity100: 419.800, capacity98: 411.404, capacity95: 398.810, position: 'port' },
-      { id: 'S4', name: '右.4 S.4', code: 'S4', refHeight: 8.950, zeroUllageRef: 750, capacity100: 419.800, capacity98: 411.404, capacity95: 398.810, position: 'starboard' },
-      { id: 'P5', name: '左.5 P.5', code: 'P5', refHeight: 8.930, zeroUllageRef: 730, capacity100: 380.200, capacity98: 372.596, capacity95: 361.190, position: 'port' },
-      { id: 'S5', name: '右.5 S.5', code: 'S5', refHeight: 8.930, zeroUllageRef: 730, capacity100: 380.200, capacity98: 372.596, capacity95: 361.190, position: 'starboard' },
-      { id: 'P6', name: '左.污油 P.Slop', code: 'P6', refHeight: 8.850, zeroUllageRef: 650, capacity100: 85.600, capacity98: 83.888, capacity95: 81.320, position: 'slop' },
-      { id: 'S6', name: '右.污油 S.Slop', code: 'S6', refHeight: 8.850, zeroUllageRef: 650, capacity100: 85.600, capacity98: 83.888, capacity95: 81.320, position: 'slop' },
+      { id: 'P1', name: '左.1 P.1', code: 'P1', refHeight: 8.960, zeroUllageRef: 760, capacity100: 591.161, capacity98: 579.338, capacity95: 561.603, pipeLineNo1: 0.503, position: 'port' },
+      { id: 'S1', name: '右.1 S.1', code: 'S1', refHeight: 8.956, zeroUllageRef: 759, capacity100: 591.893, capacity98: 580.055, capacity95: 562.298, pipeLineNo1: 0.122, position: 'starboard' },
+      { id: 'P2', name: '左.2 P.2', code: 'P2', refHeight: 8.936, zeroUllageRef: 759, capacity100: 859.792, capacity98: 842.596, capacity95: 816.802, pipeLineNo1: 1.055, pipeLineNo2: 0.374, position: 'port' },
+      { id: 'S2', name: '右.2 S.2', code: 'S2', refHeight: 8.939, zeroUllageRef: 762, capacity100: 861.240, capacity98: 844.015, capacity95: 818.178, pipeLineNo2: 0.417, position: 'starboard' },
+      { id: 'P3', name: '左.3 P.3', code: 'P3', refHeight: 8.940, zeroUllageRef: 753, capacity100: 991.421, capacity98: 971.593, capacity95: 941.850, pipeLineNo1: 1.622, position: 'port' },
+      { id: 'S3', name: '右.3 S.3', code: 'S3', refHeight: 8.960, zeroUllageRef: 760, capacity100: 994.259, capacity98: 974.374, capacity95: 944.546, pipeLineNo1: 0.122, pipeLineNo2: 1.154, position: 'starboard' },
+      { id: 'P4', name: '左.4 P.4', code: 'P4', refHeight: 8.952, zeroUllageRef: 760, capacity100: 1035.807, capacity98: 1015.091, capacity95: 984.017, pipeLineNo1: 1.687, pipeLineNo2: 0.467, position: 'port' },
+      { id: 'S4', name: '右.4 S.4', code: 'S4', refHeight: 8.958, zeroUllageRef: 758, capacity100: 1036.506, capacity98: 1015.776, capacity95: 984.681, pipeLineNo2: 1.852, position: 'starboard' },
+      { id: 'P5', name: '左.5 P.5', code: 'P5', refHeight: 8.950, zeroUllageRef: 756, capacity100: 952.529, capacity98: 933.478, capacity95: 904.903, pipeLineNo1: 1.474, position: 'port' },
+      { id: 'S5', name: '右.5 S.5', code: 'S5', refHeight: 8.969, zeroUllageRef: 766, capacity100: 952.530, capacity98: 933.479, capacity95: 904.903, pipeLineNo1: 0.122, pipeLineNo2: 1.153, position: 'starboard' },
+      { id: 'P_SLOP', name: 'P.SLOP (左污油舱)', code: 'PSLOP', refHeight: 8.940, zeroUllageRef: 779, capacity100: 132.456, capacity98: 129.807, capacity95: 125.833, pipeLineNo1: 0.417, position: 'slop' },
+      { id: 'S_SLOP', name: 'S.SLOP (右污油舱)', code: 'SSLOP', refHeight: 8.921, zeroUllageRef: 758, capacity100: 133.006, capacity98: 130.346, capacity95: 126.356, pipeLineNo2: 0.460, position: 'slop' },
     ]
   },
   {
@@ -96,9 +101,10 @@ const PRESET_VESSELS: VesselMetadata[] = [
 ];
 
 export const PdfUploadGeneratorView: React.FC<PdfUploadGeneratorViewProps> = ({
+  currentVesselMeta,
   onApplyVesselToCalculator,
 }) => {
-  const [activeVessel, setActiveVessel] = useState<VesselMetadata>(PRESET_VESSELS[0]);
+  const [activeVessel, setActiveVessel] = useState<VesselMetadata>(currentVesselMeta || PRESET_VESSELS[0]);
   const [selectedFileImage, setSelectedFileImage] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -215,7 +221,10 @@ export const PdfUploadGeneratorView: React.FC<PdfUploadGeneratorViewProps> = ({
               return (
                 <div
                   key={idx}
-                  onClick={() => setActiveVessel(v)}
+                  onClick={() => {
+                    setActiveVessel(v);
+                    onApplyVesselToCalculator(v);
+                  }}
                   className={`p-3 rounded-xl border cursor-pointer transition-all ${
                     isSelected
                       ? 'border-blue-500 bg-blue-950/40 shadow-md ring-1 ring-blue-500/30'

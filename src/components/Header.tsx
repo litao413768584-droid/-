@@ -1,15 +1,26 @@
 import React from 'react';
-import { Ship, Calculator, ShieldCheck, FileText, Sparkles, Anchor, UploadCloud } from 'lucide-react';
+import { Ship, Calculator, ShieldCheck, FileText, Anchor, UploadCloud } from 'lucide-react';
 import { VESSEL_INFO } from '../data/shipData';
+import { VesselMetadata } from '../types/vessel';
 
 interface HeaderProps {
   activeTab: 'calculator' | 'pdf' | 'example' | 'certificate';
   setActiveTab: (tab: 'calculator' | 'pdf' | 'example' | 'certificate') => void;
+  vesselMeta?: VesselMetadata | null;
   currentVesselName?: string;
   currentCertNo?: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, currentVesselName, currentCertNo }) => {
+export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, vesselMeta, currentVesselName, currentCertNo }) => {
+  const name = vesselMeta?.name || currentVesselName || VESSEL_INFO.name;
+  const englishName = vesselMeta?.englishName || VESSEL_INFO.englishName;
+  const certNo = vesselMeta?.certificateNo || currentCertNo || VESSEL_INFO.certificateNo;
+  const authority = vesselMeta?.issuingAuthority || VESSEL_INFO.institution;
+  const validPeriod = vesselMeta?.validPeriod || VESSEL_INFO.expiryDate;
+  const totalCap = vesselMeta
+    ? vesselMeta.tanks.reduce((sum, t) => sum + (t.capacity100 || 0), 0).toFixed(3)
+    : VESSEL_INFO.totalCapacity100;
+
   return (
     <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-50 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -23,22 +34,22 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, current
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                  {currentVesselName || VESSEL_INFO.name}
+                  {name}
                   <span className="text-xs bg-blue-500/20 text-blue-300 font-mono px-2 py-0.5 rounded border border-blue-500/30">
-                    {VESSEL_INFO.englishName}
+                    {englishName}
                   </span>
                 </h1>
                 <span className="inline-flex items-center gap-1 text-xs bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full font-medium border border-emerald-500/30">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  CRZH 检定 ({currentCertNo || VESSEL_INFO.certificateNo})
+                  检定证书 ({certNo})
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
-                <span>总舱容: <strong className="text-slate-200">{VESSEL_INFO.totalCapacity100} m³</strong></span>
+                <span>总舱容: <strong className="text-slate-200">{totalCap} m³</strong></span>
                 <span>•</span>
-                <span>计量站: {VESSEL_INFO.institution}</span>
+                <span>计量站: {authority}</span>
                 <span>•</span>
-                <span>有效期至: {VESSEL_INFO.expiryDate}</span>
+                <span>有效期至: {validPeriod}</span>
               </p>
             </div>
           </div>

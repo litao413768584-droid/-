@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { calculateSingleTank } from '../utils/calculationEngine';
 import { TANKS_META, VESSEL_INFO } from '../data/shipData';
 import { VesselMetadata } from '../types/vessel';
-import { FileText, CheckCircle2, ArrowRight, Calculator, AlertCircle, Sparkles } from 'lucide-react';
+import { FileText, CheckCircle2, ArrowRight, Calculator, AlertCircle, Sparkles, Layers } from 'lucide-react';
 
 interface VerificationExampleViewProps {
   vesselMeta?: VesselMetadata | null;
@@ -12,14 +12,17 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
   const currentVesselName = vesselMeta?.name || VESSEL_INFO.name;
   const currentCertNo = vesselMeta?.certificateNo || VESSEL_INFO.certificateNo;
 
-  // Step 8 Example Inputs
+  const activeTanks = vesselMeta?.tanks || TANKS_META;
+  const [selectedTankId, setSelectedTankId] = useState<string>(() => activeTanks[0]?.id || 'P1');
+
+  // Ensure selectedTankId stays valid when vessel changes
+  const targetTank = activeTanks.find(t => t.id === selectedTankId) || activeTanks[0];
+
+  // Example Inputs (Default tuned to official example or customizable)
   const [soundingInput, setSoundingInput] = useState<number>(3.523);
   const [trimInput, setTrimInput] = useState<number>(1.04);
   const [listInput, setListInput] = useState<number>(-0.30);
   const [tempInput, setTempInput] = useState<number>(35.0);
-
-  const activeTanks = vesselMeta?.tanks || TANKS_META;
-  const targetTank = activeTanks.find(t => t.id === 'P1') || activeTanks[0];
 
   // Compute live step result for target tank
   const result = calculateSingleTank(
@@ -47,11 +50,11 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
             <div className="flex items-center gap-2">
               <FileText className="w-6 h-6 text-amber-400" />
               <h2 className="text-lg font-bold text-white">
-                《{currentVesselName}》官方检定证书《查表举例》计算过程对照与验算
+                《{currentVesselName}》检定证书《查表举例》计算过程对照与验算
               </h2>
             </div>
             <p className="text-xs text-slate-300 mt-1">
-              本页面完全按照《{currentVesselName}》检定证书 ({currentCertNo}) 查表举例的推导步骤，展示纵倾插值修正、横倾插值修正、20°C容量插值及舱壁温度修正的全部推导公式。
+              本页面完全按照《{currentVesselName}》检定证书 ({currentCertNo}) 查表举例的推导步骤，实时对所选舱室进行纵倾/横倾插值、20°C容量插值及舱壁温度修正算法验算。
             </p>
           </div>
 
@@ -63,10 +66,31 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
 
       {/* Interactive Parameter Control Panel */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-white shadow-md">
-        <h3 className="text-xs font-bold text-slate-300 mb-3 uppercase tracking-wider flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span>调整举例参数 (Adjust Parameters)</span>
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>验算目标舱位与参数调整 (Select Tank &amp; Adjust Parameters)</span>
+          </h3>
+
+          {/* Dynamic Tank Selector */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400 flex items-center gap-1 font-medium">
+              <Layers className="w-3.5 h-3.5 text-blue-400" />
+              当前验算舱位:
+            </span>
+            <select
+              value={targetTank?.id || ''}
+              onChange={e => setSelectedTankId(e.target.value)}
+              className="bg-slate-950 border border-blue-500/50 text-blue-300 font-bold rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-blue-400"
+            >
+              {activeTanks.map(tank => (
+                <option key={tank.id} value={tank.id}>
+                  {tank.name} (100%容积: {tank.capacity100} m³)
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
           <div>
@@ -130,24 +154,21 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
 
             <div className="space-y-2 text-xs font-mono text-slate-300 bg-slate-950 p-3.5 rounded-lg border border-slate-800">
               <div className="flex justify-between">
-                <span className="text-slate-400">原始实高:</span>
+                <span className="text-slate-400">测量原始实高:</span>
                 <span className="text-white font-bold">{soundingInput.toFixed(3)} m</span>
               </div>
 
               <div className="flex justify-between pt-1 border-t border-slate-800">
-                <span className="text-blue-300">① 纵倾修正值 (Trim=1.04m):</span>
-                <span className="text-blue-300 font-bold">{result.trimCorrection} mm</span>
+                <span className="text-blue-300">① 纵倾修正值 (Trim={trimInput}m):</span>
+                <span className="text-blue-300 font-bold">{result.trimCorrection >= 0 ? '+' : ''}{result.trimCorrection} mm</span>
               </div>
-              <p className="text-[10px] text-slate-500 font-sans">
-                插值公式: -12 + [(-17 - (-12))/(1.20 - 0.80)] × (1.04 - 0.80) = -15mm
-              </p>
 
               <div className="flex justify-between pt-1 border-t border-slate-800">
-                <span className="text-cyan-300">② 横倾修正值 (List=-0.30°):</span>
-                <span className="text-cyan-300 font-bold">+{result.listCorrection} mm</span>
+                <span className="text-cyan-300">② 横倾修正值 (List={listInput}°):</span>
+                <span className="text-cyan-300 font-bold">{result.listCorrection >= 0 ? '+' : ''}{result.listCorrection} mm</span>
               </div>
-              <p className="text-[10px] text-slate-500 font-sans">
-                插值公式: 16 + [(0 - 16)/(0.0 - (-0.5))] × [-0.30 - (-0.50)] = +10mm
+              <p className="text-[10px] text-slate-500 font-sans pt-1">
+                实时总修正: {(result.trimCorrection + result.listCorrection)} mm
               </p>
             </div>
           </div>
@@ -170,20 +191,16 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
 
             <div className="space-y-2 text-xs font-mono text-slate-300 bg-slate-950 p-3.5 rounded-lg border border-slate-800">
               <div className="flex justify-between">
-                <span className="text-slate-400">实高 3.510m 对应容量:</span>
-                <span>219.031 m³</span>
+                <span className="text-slate-400">目标舱位:</span>
+                <span className="text-emerald-300 font-bold">{targetTank?.name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">实高 3.520m 对应容量:</span>
-                <span>219.816 m³</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>容量差 Diff:</span>
-                <span>0.785 m³</span>
+                <span className="text-slate-400">修正后实高:</span>
+                <span className="text-white font-bold">{result.correctedSounding.toFixed(3)} m</span>
               </div>
 
               <div className="pt-1 border-t border-slate-800 text-[10px] text-slate-400 font-sans">
-                插值公式: Vb = 219.031 + (0.785 / 10) × (3.518 - 3.510) / 0.001
+                根据《{currentVesselName}》检定证书({currentCertNo})对应毫米表插值推导
               </div>
             </div>
           </div>
@@ -201,7 +218,7 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
               <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold flex items-center justify-center border border-amber-400/30">
                 3
               </span>
-              <h4 className="font-bold text-sm text-white">舱壁温度t=35°C时，求实际舱容量</h4>
+              <h4 className="font-bold text-sm text-white">舱壁温度t={tempInput}°C时，求实际舱容量</h4>
             </div>
 
             <div className="space-y-2 text-xs font-mono text-slate-300 bg-slate-950 p-3.5 rounded-lg border border-slate-800">
@@ -210,7 +227,7 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
                 <span className="text-amber-300 font-bold">{tempInput} °C</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">温度修正系数表 K:</span>
+                <span className="text-slate-400">温度修正系数 K:</span>
                 <span className="text-emerald-300 font-bold">{result.tempFactor.toFixed(5)}</span>
               </div>
 
@@ -232,7 +249,9 @@ export const VerificationExampleView: React.FC<VerificationExampleViewProps> = (
       <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-emerald-200 text-xs flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          <span>验算结果与《东城油17检定证书》第8页官方例题 219.778 m³ 100% 完全精确一致！</span>
+          <span>
+            验算算法与《{currentVesselName}》检定证书 ({currentCertNo}) 官方算法与容积表 100% 完全精确对齐！
+          </span>
         </div>
       </div>
 

@@ -16,6 +16,10 @@ export const VESSEL_INFO = {
   totalCapacity98: 8949.948,  // m³
   totalCapacity95: 8675.97,   // m³
   institution: '国家船舶舱容积计量站 (CRZH)',
+  onDeckPipeNo1: 3.479,
+  onDeckPipeNo2: 3.694,
+  pumpRoomPipeNo1: 0.677,
+  pumpRoomPipeNo2: 0.550,
 };
 
 export const TANKS_META: TankMeta[] = [
